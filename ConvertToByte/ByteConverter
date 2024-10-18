@@ -1,0 +1,104 @@
+//Conversor a byte[] de un archivo recibido
+//Se trocea el archivo y se modifica el buffer para que segun el tamaño del archivo adquiera mayor o menor tamaño haciendolo dinamico 
+//Una vez se trocea y se lee se junta al final mergeandolo y se guarda en la bbdd 
+
+public async Task<UploaderModel> OnPost(EditContext editContext)
+  {
+      //Si llamamos al OnPost desde el submit, el editContext viene relleno y nos deja validar el formulario
+      //Validamos los datos antes de enviar
+      bool submitted = editContext.Validate();
+      var startHour = DateTime.UtcNow;
+      Console.WriteLine($"Ha empezado el Post {startHour}");
+      Console.WriteLine($"Tamaño del archivo {Model.FileUpload.Size}");
+
+
+      var classificationId = Model.Classification;
+
+      var temporalPath = @"Ruta recogida datos";/
+
+      byte[] contentByteArray;
+
+      //Este OnPost debe venir con los datos necesarios para completar la subida de archivos
+      if (Model.FileUpload != null)
+      {
+          try
+          {
+              fileToUpload = Model.FileUpload;
+              const int chunkSize = 1024 * 1024; // Tamaño de cada parte (1 MB)
+              long fileSize = fileToUpload.Size;
+
+              using (var mergedStream = new MemoryStream())
+              {
+                  // Ajusta el tamaño del buffer dinámicamente
+                  if (fileSize > 2 * (Math.Pow(10, 9))) fileSize = (long)(1.5 * (Math.Pow(10, 9))); //Si el tamaño del doc excede de los 2gb aumentamos el buffer solo para 1,5gb ya que puede dar problemas.
+                  int bufferMultiplier = (int)Math.Ceiling((double)fileSize / (1024 * 1024));
+                  byte[] buffer = new byte[chunkSize * bufferMultiplier];
+
+                  // Dividir el archivo en partes
+                  for (long i = 0; i < fileSize; i += chunkSize)
+                  {
+                      long endPosition = Math.Min(i + chunkSize, fileSize);
+
+                      // Crear un nuevo FileStream para cada parte del archivo
+                      using (var fileStream = new FileStream(temporalPath + fileToUpload.Name, FileMode.Open, FileAccess.Read, FileShare.Read))
+                      {
+                          fileStream.Seek(i, SeekOrigin.Begin); // Mover el puntero al inicio de la parte actual
+                          long bytesRead = await fileStream.ReadAsync(buffer, 0, (int)Math.Min(chunkSize, fileSize - i));
+                          mergedStream.Write(buffer, 0, (int)bytesRead);
+                      }
+                  }
+
+                  // string filePath = Path.Combine(@"C:\Users\U69676\Documents\_Alvaro\Docks", fileToUpload.Name);
+
+                  // using (FileStream fs = new FileStream(filePath, FileMode.Create))
+                  // {
+                  //     mergedStream.WriteTo(fs);
+                  // }
+                  contentByteArray = mergedStream.ToArray();
+              }
+
+
+              ModeloClass modelClass = new ModeloClass
+                  {
+                      classId = Model.Classification,
+                      CleaId = Model.Clearence,
+                      Comment = Model.Comment,
+                      FileContent = contentByteArray,
+                      FileName = Model.FileUpload.Name
+                  };
+              var data = Repo.insert (modelClass)
+
+
+              var result = get (modelClass)
+              string filePath = Path.Combine(@"ruta a guardar", result.FileName);/
+              File.WriteAllBytes(filePath, result.FileName);
+
+             
+          }
+
+          catch (Exception ex)
+          {
+              Console.Write(ex.Message);
+          }
+          finally
+          {
+              var endHour = DateTime.UtcNow;
+              Console.WriteLine("Proceso terminado");
+              Console.WriteLine($"Ha empezado a las {startHour} y acabado a las {endHour}");
+              Console.WriteLine($"Tiempo tardado: {startHour - endHour}");
+          }
+
+      }
+
+
+      return Model;
+  }
+public class ModeloClass
+{
+  public int Id {get;set;}
+  public int classId {get;set;}
+  public int CleaId {get;set;}
+  public string Comment {get;set;}
+  public string FileName {get;set;}
+  public byte[] Filecontent {get;set;}
+}
